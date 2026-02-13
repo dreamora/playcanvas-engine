@@ -1,0 +1,43 @@
+# DeepWiki-Open Configuration for PlayCanvas Engine
+input:
+  path: ./src
+  include:
+    - "**/*.js"
+    - "**/*.ts"
+    - "**/*.mjs"
+  exclude:
+    - "**/node_modules/**"
+    - "**/dist/**"
+    - "**/test/**"
+    - "**/build/**"
+
+output:
+  path: ./wiki
+  format: markdown
+  include_source_links: true
+
+generation:
+  model_provider: google
+  model_name: gemini-2.0-flash
+  detail_level: medium
+  language: english
+
+  focus_areas:
+    - "graphics_engine_webgl_webgpu"
+    - "physics_integration_ammojs"
+    - "animation_system"
+    - "scene_graph_and_entities"
+    - "scripting_system"
+    - "resource_loader_and_assets"
+    - "input_handling"
+    - "sound_manager"
+
+  diagram_types:
+    - "architecture"
+    - "data_flow"
+    - "api_structure"
+    - "component_relationships"
+
+  custom_prompts:
+    architecture: "Focus on how the PlayCanvas engine manages the scene graph and the rendering pipeline (WebGL2/WebGPU)."
+    components: "Explain the relationship between Entities and Components in the PlayCanvas framework."

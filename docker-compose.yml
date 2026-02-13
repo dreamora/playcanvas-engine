@@ -1,0 +1,109 @@
+# Docker Compose for self-hosting DeepWiki-Open
+# To use:
+# 1. Copy .env.example to .env and fill in your API keys.
+# 2. Run: docker-compose up -d
+
+version: '3.8'
+
+services:
+  # DeepWiki-Open Application
+  app:
+    image: ghcr.io/asyncfuncai/deepwiki-open:latest
+    container_name: deep-wiki-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://redis:6379
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - JWT_SECRET=${JWT_SECRET}
+      - NEXTAUTH_URL=${NEXTAUTH_URL}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+    volumes:
+      - deepwiki-data:/app/data
+      - deepwiki-logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - deepwiki-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # PostgreSQL database
+  postgres:
+    image: postgres:15-alpine
+    container_name: deep-wiki-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - deepwiki-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis cache
+  redis:
+    image: redis:7-alpine
+    container_name: deep-wiki-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - deepwiki-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # Elasticsearch for search and RAG
+  elasticsearch:
+    image: elasticsearch:8.8.0
+    container_name: deep-wiki-elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - xpack.security.enabled=false
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    networks:
+      - deepwiki-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  deepwiki-data:
+  deepwiki-logs:
+  postgres-data:
+  redis-data:
+  elasticsearch-data:
+
+networks:
+  deepwiki-network:
+    driver: bridge
