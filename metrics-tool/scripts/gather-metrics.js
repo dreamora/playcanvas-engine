@@ -18,7 +18,12 @@ const {
 } = process.env;
 
 async function run() {
-    const event = require(GITHUB_EVENT_PATH);
+    if (!GITHUB_EVENT_PATH) {
+        console.error("GITHUB_EVENT_PATH is not defined. This script is intended to run in a GitHub Action.");
+        return;
+    }
+    const fs = require('fs');
+    const event = JSON.parse(fs.readFileSync(GITHUB_EVENT_PATH, 'utf8'));
     const pr = event.pull_request;
 
     if (!pr || !pr.merged) {
