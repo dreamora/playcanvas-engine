@@ -1,0 +1,72 @@
+name: Metrics Tracker
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  track-metrics:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: metrics-tool/package-lock.json
+
+      - name: Install dependencies
+        working-directory: metrics-tool
+        run: npm install
+
+      - name: Gather Metrics
+        working-directory: metrics-tool
+        run: node scripts/gather-metrics.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          FIREBASE_DATABASE_URL: ${{ secrets.FIREBASE_DATABASE_URL }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          JIRA_CREATED_FIELD: ${{ vars.JIRA_CREATED_FIELD }}
+          JIRA_CYCLE_TIME_FIELD: ${{ vars.JIRA_CYCLE_TIME_FIELD }}
+          JIRA_PR_LEAD_TIME_FIELD: ${{ vars.JIRA_PR_LEAD_TIME_FIELD }}
+
+  deploy-dashboard:
+    needs: track-metrics
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: metrics-tool/dashboard/package-lock.json
+
+      - name: Install Dashboard dependencies
+        working-directory: metrics-tool/dashboard
+        run: npm install
+
+      - name: Build Dashboard
+        working-directory: metrics-tool/dashboard
+        run: npm run build
+        env:
+          VITE_FIREBASE_CONFIG: ${{ secrets.FIREBASE_CONFIG }}
+          VITE_FIREBASE_DATABASE_URL: ${{ secrets.FIREBASE_DATABASE_URL }}
+
+      - name: Deploy to Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
+          channelId: live
+          projectId: ${{ vars.FIREBASE_PROJECT_ID }}
+          entryPoint: metrics-tool/dashboard
