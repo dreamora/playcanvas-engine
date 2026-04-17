@@ -94,7 +94,8 @@ async function run() {
             });
         }
         const db = admin.database();
-        const ref = db.ref(`metrics/${repo.replace(/\./g, '_')}/${pr.number}`);
+    const safeRepoPath = GITHUB_REPOSITORY.replace(/\//g, ':').replace(/\./g, '_');
+    const ref = db.ref(`metrics/${safeRepoPath}/${pr.number}`);
         await ref.set(metrics);
         console.log("Stored in Firebase.");
     }

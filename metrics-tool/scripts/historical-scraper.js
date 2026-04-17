@@ -15,12 +15,12 @@ const {
 } = process.env;
 
 async function scrape() {
-    if (!GITHUB_REPOSITORY) throw new Error("GITHUB_REPOSITORY env var is required (e.g. owner/repo)");
+    if (!GITHUB_REPOSITORY) throw new Error("GITHUB_REPOSITORY env var is required (e.g. owner/repo or owner/repo1,owner/repo2)");
 
+    const reposToScrape = GITHUB_REPOSITORY.split(",").map(r => r.trim());
     const octokit = new Octokit({ auth: GITHUB_TOKEN });
-    const [owner, repo] = GITHUB_REPOSITORY.split("/");
 
-    console.log(`Starting historical scrape for ${GITHUB_REPOSITORY}...`);
+    console.log(`Starting historical scrape for: ${reposToScrape.join(", ")}`);
 
     // Initialize Firebase
     if (FIREBASE_SERVICE_ACCOUNT && FIREBASE_DATABASE_URL) {
@@ -38,21 +38,24 @@ async function scrape() {
     const db = admin.database();
     const jiraAuth = Buffer.from(`${JIRA_USER_EMAIL}:${JIRA_API_TOKEN}`).toString('base64');
 
-    // Fetch last 100 merged PRs
-    const { data: pullRequests } = await octokit.pulls.list({
-        owner,
-        repo,
-        state: 'closed',
-        base: 'main', // adjust if needed
-        per_page: 100,
-        sort: 'updated',
-        direction: 'desc'
-    });
+    for (const repoPath of reposToScrape) {
+        const [owner, repo] = repoPath.split("/");
+        console.log(`\n--- Scraping ${repoPath} ---`);
 
-    const mergedPRs = pullRequests.filter(pr => pr.merged_at);
-    console.log(`Found ${mergedPRs.length} merged PRs to process.`);
+        // Fetch last 100 merged PRs
+        const { data: pullRequests } = await octokit.pulls.list({
+            owner,
+            repo,
+            state: 'closed',
+            per_page: 100,
+            sort: 'updated',
+            direction: 'desc'
+        });
 
-    for (const pr of mergedPRs) {
+        const mergedPRs = pullRequests.filter(pr => pr.merged_at);
+        console.log(`Found ${mergedPRs.length} merged PRs in ${repoPath}.`);
+
+        for (const pr of mergedPRs) {
         const jiraIdMatch = pr.title.match(/[A-Z]+-[0-9]+/) || pr.head.ref.match(/[A-Z]+-[0-9]+/);
         if (!jiraIdMatch) continue;
 
@@ -85,16 +88,17 @@ async function scrape() {
                 prMergedAt: prMergedAt.toISOString(),
                 cycleTimeHours: parseFloat(((prMergedAt - jiraCreatedAt) / (1000 * 60 * 60)).toFixed(2)),
                 prLeadTimeHours: parseFloat(((prMergedAt - prCreatedAt) / (1000 * 60 * 60)).toFixed(2)),
-                repository: GITHUB_REPOSITORY
+                repository: repoPath
             };
 
-            await db.ref(`metrics/${repo.replace(/\./g, '_')}/${pr.number}`).set(metrics);
+            const safeRepoPath = repoPath.replace(/\//g, ':').replace(/\./g, '_');
+            await db.ref(`metrics/${safeRepoPath}/${pr.number}`).set(metrics);
         } catch (e) {
             console.error(`Error processing ${jiraId}:`, e.message);
         }
     }
 
-    console.log("Scrape complete.");
+    console.log("\nAll scrapes complete.");
     process.exit(0);
 }
 

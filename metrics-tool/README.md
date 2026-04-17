@@ -6,7 +6,7 @@ A standalone tool to measure, track, and visualize development metrics: **Cycle 
 - **GitHub Action**: Automatically calculates metrics on PR merge.
 - **Jira Integration**: Updates Jira tickets with metrics and links.
 - **Firebase Persistence**: Stores metrics in a lightweight JSON database.
-- **Vue.js Dashboard**: Visualizes trends and distributions of your team's velocity.
+- **Vue.js Dashboard**: Visualizes trends and distributions of your team's velocity, supporting both aggregated and per-project views.
 
 ## Setup Instructions
 
@@ -38,13 +38,19 @@ The tool is designed to be "Option B" (merged into your repo).
 2. Once secrets are set, the next merged PR will trigger the tracker and deploy the dashboard.
 
 ## Historical Scrape
-To backfill data, run the scraper locally:
+To backfill data, run the scraper locally. You can specify multiple repositories by separating them with commas:
 ```bash
 cd metrics-tool
 npm install
 # Create a .env file with the required secrets
+# GITHUB_REPOSITORY="owner/repo1,owner/repo2"
 node scripts/historical-scraper.js
 ```
+
+## Dashboard Multi-Project Support
+The dashboard automatically detects all repositories that have pushed data to the Firebase database.
+- Use the **Project Dropdown** at the top of the dashboard to filter metrics for a specific repository.
+- Select **All Projects (Aggregated)** to see the combined metrics for your entire engineering organization.
 
 ## Dashboard Development
 ```bash

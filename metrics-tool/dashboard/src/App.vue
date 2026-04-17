@@ -38,6 +38,8 @@ interface Metric {
 
 const metrics = ref<Metric[]>([]);
 const loading = ref(true);
+const selectedRepo = ref<string>('all');
+const availableRepos = ref<string[]>([]);
 
 onMounted(() => {
   if (!db) {
@@ -49,9 +51,11 @@ onMounted(() => {
     const data = snapshot.val();
     if (data) {
       const allMetrics: Metric[] = [];
+      const repos = Object.keys(data);
+      availableRepos.value = repos;
       Object.keys(data).forEach(repo => {
         Object.keys(data[repo]).forEach(prNum => {
-          allMetrics.push(data[repo][prNum]);
+          allMetrics.push({ ...data[repo][prNum], repoName: repo });
         });
       });
       // Sort by date
@@ -62,29 +66,34 @@ onMounted(() => {
   });
 });
 
+const filteredMetrics = computed(() => {
+  if (selectedRepo.value === 'all') return metrics.value;
+  return metrics.value.filter(m => (m as any).repoName === selectedRepo.value);
+});
+
 const avgCycleTime = computed(() => {
-  if (metrics.value.length === 0) return 0;
-  return (metrics.value.reduce((acc, m) => acc + m.cycleTimeHours, 0) / metrics.value.length).toFixed(1);
+  if (filteredMetrics.value.length === 0) return 0;
+  return (filteredMetrics.value.reduce((acc, m) => acc + m.cycleTimeHours, 0) / filteredMetrics.value.length).toFixed(1);
 });
 
 const avgPRLeadTime = computed(() => {
-  if (metrics.value.length === 0) return 0;
-  return (metrics.value.reduce((acc, m) => acc + m.prLeadTimeHours, 0) / metrics.value.length).toFixed(1);
+  if (filteredMetrics.value.length === 0) return 0;
+  return (filteredMetrics.value.reduce((acc, m) => acc + m.prLeadTimeHours, 0) / filteredMetrics.value.length).toFixed(1);
 });
 
 const lineChartData = computed(() => ({
-  labels: metrics.value.map(m => format(new Date(m.prMergedAt), 'MMM dd')),
+  labels: filteredMetrics.value.map(m => format(new Date(m.prMergedAt), 'MMM dd')),
   datasets: [
     {
       label: 'Cycle Time (h)',
       borderColor: '#42b883',
-      data: metrics.value.map(m => m.cycleTimeHours),
+      data: filteredMetrics.value.map(m => m.cycleTimeHours),
       tension: 0.1
     },
     {
       label: 'PR Lead Time (h)',
       borderColor: '#35495e',
-      data: metrics.value.map(m => m.prLeadTimeHours),
+      data: filteredMetrics.value.map(m => m.prLeadTimeHours),
       tension: 0.1
     }
   ]
@@ -95,7 +104,7 @@ const scatterChartData = computed(() => ({
     {
       label: 'PRs',
       backgroundColor: '#42b883',
-      data: metrics.value.map(m => ({
+      data: filteredMetrics.value.map(m => ({
         x: new Date(m.prMergedAt).getTime(),
         y: m.cycleTimeHours,
         title: m.title
@@ -136,6 +145,15 @@ const scatterOptions: any = {
   <div class="dashboard">
     <header>
       <h1>🚀 Dev Metrics Dashboard</h1>
+      <div v-if="!loading && availableRepos.length > 0" class="controls">
+        <label for="repo-select">Project:</label>
+        <select id="repo-select" v-model="selectedRepo">
+          <option value="all">All Projects (Aggregated)</option>
+          <option v-for="repo in availableRepos" :key="repo" :value="repo">
+            {{ repo.replace(/:/g, '/').replace(/_/g, '.') }}
+          </option>
+        </select>
+      </div>
       <div v-if="!loading" class="stats">
         <div class="stat-card">
           <h3>Avg Cycle Time</h3>
@@ -148,7 +166,7 @@ const scatterOptions: any = {
       </div>
     </header>
 
-    <main v-if="!loading && metrics.length > 0">
+    <main v-if="!loading && filteredMetrics.length > 0">
       <div class="chart-container">
         <h2>Trends Over Time</h2>
         <Line :data="lineChartData" />
@@ -172,8 +190,8 @@ const scatterOptions: any = {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="m in metrics.slice().reverse()" :key="m.prNumber">
-              <td>#{{ m.prNumber }} - {{ m.title }}</td>
+            <tr v-for="m in filteredMetrics.slice().reverse()" :key="m.prNumber">
+              <td>#{{ m.prNumber }} - {{ m.title }} <br/><small v-if="selectedRepo === 'all'">{{ (m as any).repoName }}</small></td>
               <td>{{ m.jiraId }}</td>
               <td>{{ m.cycleTimeHours }}h</td>
               <td>{{ m.prLeadTimeHours }}h</td>
@@ -210,6 +228,18 @@ header {
   margin-bottom: 2rem;
   flex-wrap: wrap;
   gap: 1rem;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.controls select {
+  padding: 0.5rem;
+  border-radius: 4px;
+  border: 1px solid #ddd;
 }
 
 header h1 {
