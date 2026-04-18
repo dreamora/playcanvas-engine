@@ -20,7 +20,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: metrics-tool
-        run: npm install
+        run: npm ci
 
       - name: Gather Metrics
         working-directory: metrics-tool
@@ -53,7 +53,7 @@ jobs:
 
       - name: Install Dashboard dependencies
         working-directory: metrics-tool/dashboard
-        run: npm install
+        run: npm ci
 
       - name: Build Dashboard
         working-directory: metrics-tool/dashboard

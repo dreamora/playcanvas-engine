@@ -106,7 +106,7 @@ async function run() {
         if (JIRA_CYCLE_TIME_FIELD) updateFields[JIRA_CYCLE_TIME_FIELD] = metrics.cycleTimeHours;
         if (JIRA_PR_LEAD_TIME_FIELD) updateFields[JIRA_PR_LEAD_TIME_FIELD] = metrics.prLeadTimeHours;
 
-        await fetch(`${JIRA_BASE_URL}/rest/api/3/issue/${jiraId}`, {
+        const response = await fetch(`${JIRA_BASE_URL}/rest/api/3/issue/${jiraId}`, {
             method: 'PUT',
             headers: {
                 'Authorization': `Basic ${jiraAuth}`,
@@ -115,6 +115,10 @@ async function run() {
             },
             body: JSON.stringify({ fields: updateFields })
         });
+        const responseBody = await response.text();
+        if (!response.ok) {
+            throw new Error(`Failed to update JIRA fields. Status: ${response.status} ${response.statusText}. Body: ${responseBody}`);
+        }
         console.log("Updated JIRA fields.");
     }
 
