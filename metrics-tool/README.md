@@ -30,7 +30,7 @@ Add the following secrets to your repository:
 - `JIRA_CREATED_FIELD`: The custom field ID for the "original creation date" if the default `created` field is inaccurate.
 - `JIRA_CYCLE_TIME_FIELD`: The Jira custom field ID to update with Cycle Time.
 - `JIRA_PR_LEAD_TIME_FIELD`: The Jira custom field ID to update with PR Lead Time.
-- `FIREBASE_PROJECT_ID`: Your Firebase project ID for hosting.
+- `FIREBASE_PROJECT_ID`: Your Firebase project ID for hosting (Required for dashboard deployment).
 
 ### 4. Deployment
 The tool is designed to be "Option B" (merged into your repo).
