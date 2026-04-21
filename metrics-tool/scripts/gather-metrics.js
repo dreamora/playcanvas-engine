@@ -31,6 +31,12 @@ async function run() {
         return;
     }
 
+    if (!GITHUB_TOKEN) {
+        throw new Error("GITHUB_TOKEN is not defined. This script requires GitHub authentication to create a PR comment.");
+    }
+    if (!GITHUB_REPOSITORY || !/^[^/]+\/[^/]+$/.test(GITHUB_REPOSITORY)) {
+        throw new Error("GITHUB_REPOSITORY must be defined in 'owner/repo' format.");
+    }
     const octokit = new Octokit({ auth: GITHUB_TOKEN });
     const [owner, repo] = GITHUB_REPOSITORY.split("/");
 
