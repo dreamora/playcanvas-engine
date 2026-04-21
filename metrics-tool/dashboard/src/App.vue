@@ -34,6 +34,7 @@ interface Metric {
   cycleTimeHours: number;
   prLeadTimeHours: number;
   prMergedAt: string;
+  repoName?: string;
 }
 
 const metrics = ref<Metric[]>([]);
@@ -68,7 +69,7 @@ onMounted(() => {
 
 const filteredMetrics = computed(() => {
   if (selectedRepo.value === 'all') return metrics.value;
-  return metrics.value.filter(m => (m as any).repoName === selectedRepo.value);
+  return metrics.value.filter(m => m.repoName === selectedRepo.value);
 });
 
 const avgCycleTime = computed(() => {
@@ -191,7 +192,7 @@ const scatterOptions: any = {
           </thead>
           <tbody>
             <tr v-for="m in filteredMetrics.slice().reverse()" :key="m.prNumber">
-              <td>#{{ m.prNumber }} - {{ m.title }} <br/><small v-if="selectedRepo === 'all'">{{ (m as any).repoName }}</small></td>
+              <td>#{{ m.prNumber }} - {{ m.title }} <br/><small v-if="selectedRepo === 'all'">{{ m.repoName }}</small></td>
               <td>{{ m.jiraId }}</td>
               <td>{{ m.cycleTimeHours }}h</td>
               <td>{{ m.prLeadTimeHours }}h</td>
