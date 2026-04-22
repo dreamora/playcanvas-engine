@@ -31,6 +31,12 @@ async function run() {
         return;
     }
 
+    if (!GITHUB_TOKEN) {
+        throw new Error("GITHUB_TOKEN is not defined. This script requires GitHub authentication to create a PR comment.");
+    }
+    if (!GITHUB_REPOSITORY || !/^[^/]+\/[^/]+$/.test(GITHUB_REPOSITORY)) {
+        throw new Error("GITHUB_REPOSITORY must be defined in 'owner/repo' format.");
+    }
     const octokit = new Octokit({ auth: GITHUB_TOKEN });
     const [owner, repo] = GITHUB_REPOSITORY.split("/");
 
@@ -44,6 +50,10 @@ async function run() {
     console.log(`Found JIRA ID: ${jiraId}`);
 
     // 2. Fetch JIRA Data
+    if (!JIRA_BASE_URL || !JIRA_USER_EMAIL || !JIRA_API_TOKEN) {
+        console.error("Missing Jira configuration (JIRA_BASE_URL, JIRA_USER_EMAIL, or JIRA_API_TOKEN).");
+        return;
+    }
     const jiraAuth = Buffer.from(`${JIRA_USER_EMAIL}:${JIRA_API_TOKEN}`).toString('base64');
     const jiraResponse = await fetch(`${JIRA_BASE_URL}/rest/api/3/issue/${jiraId}`, {
         headers: {
