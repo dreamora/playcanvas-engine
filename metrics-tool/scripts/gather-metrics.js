@@ -134,7 +134,7 @@ async function run() {
     const commentBody = `### 📊 Development Metrics${cycleTimeLine}
 - **PR Lead Time (PR Creation to Merge):** ${metrics.prLeadTimeHours} hours${jiraLine}`;
 
-    await octokit.issues.createComment({
+    await octokit.rest.issues.createComment({
         owner,
         repo,
         issue_number: pr.number,
