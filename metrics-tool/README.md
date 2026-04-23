@@ -1,6 +1,6 @@
 # 📊 Metrics Tool
 
-A standalone tool to measure, track, and visualize development metrics: **Cycle Time** (Jira ticket creation to merge) and **PR Lead Time** (PR creation to merge).
+A standalone tool to measure, track, and visualize development metrics: **Cycle Time** (Jira ticket creation to merge), **PR Lead Time** (PR creation to merge), and **Branch Lead Time** (first commit on branch to merge).
 
 ## Features
 - **GitHub Action**: Automatically calculates metrics on PR merge.
@@ -30,6 +30,7 @@ Add the following secrets to your repository:
 - `JIRA_CREATED_FIELD`: The custom field ID for the "original creation date" if the default `created` field is inaccurate.
 - `JIRA_CYCLE_TIME_FIELD`: The Jira custom field ID to update with Cycle Time.
 - `JIRA_PR_LEAD_TIME_FIELD`: The Jira custom field ID to update with PR Lead Time.
+- `JIRA_BRANCH_LEAD_TIME_FIELD`: The Jira custom field ID to update with Branch Lead Time (first commit to merge).
 - `FIREBASE_PROJECT_ID`: Your Firebase project ID for hosting (Required for dashboard deployment).
 
 ### 4. Deployment

@@ -42,7 +42,7 @@ async function scrape() {
         console.log(`\n--- Scraping ${repoPath} ---`);
 
         // Fetch last 100 merged PRs
-        const { data: pullRequests } = await octokit.pulls.list({
+        const { data: pullRequests } = await octokit.rest.pulls.list({
             owner,
             repo,
             state: 'closed',
@@ -86,6 +86,33 @@ async function scrape() {
                 const prCreatedAt = new Date(pr.created_at);
                 const prMergedAt = new Date(pr.merged_at);
 
+                // Fetch all commits on the PR to find the earliest author date (Branch Lead Time)
+                let branchStartedAt = prCreatedAt;
+                let page = 1;
+                let allCommits = [];
+                while (true) {
+                    const { data: commits } = await octokit.rest.pulls.listCommits({
+                        owner,
+                        repo,
+                        pull_number: pr.number,
+                        per_page: 100,
+                        page
+                    });
+                    allCommits = allCommits.concat(commits);
+                    if (commits.length < 100) break;
+                    page++;
+                }
+                if (allCommits.length > 0) {
+                    const earliest = allCommits.reduce((min, c) => {
+                        const d = new Date(c.commit.author.date);
+                        return d < min ? d : min;
+                    }, new Date(allCommits[0].commit.author.date));
+                    branchStartedAt = earliest;
+                } else {
+                    console.warn(`No commits found for PR #${pr.number}. Falling back to prCreatedAt for branchStartedAt.`);
+                }
+                const branchLeadTimeHours = parseFloat(((prMergedAt - branchStartedAt) / (1000 * 60 * 60)).toFixed(2));
+
                 const metrics = {
                     jiraId,
                     prNumber: pr.number,
@@ -94,8 +121,10 @@ async function scrape() {
                     jiraCreatedAt: jiraCreatedAt ? jiraCreatedAt.toISOString() : null,
                     prCreatedAt: prCreatedAt.toISOString(),
                     prMergedAt: prMergedAt.toISOString(),
+                    branchStartedAt: branchStartedAt.toISOString(),
                     cycleTimeHours: jiraCreatedAt ? parseFloat(((prMergedAt - jiraCreatedAt) / (1000 * 60 * 60)).toFixed(2)) : null,
                     prLeadTimeHours: parseFloat(((prMergedAt - prCreatedAt) / (1000 * 60 * 60)).toFixed(2)),
+                    branchLeadTimeHours,
                     repository: repoPath
                 };
 

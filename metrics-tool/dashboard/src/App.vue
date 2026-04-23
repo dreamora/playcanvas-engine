@@ -33,6 +33,8 @@ interface Metric {
   title: string;
   cycleTimeHours: number;
   prLeadTimeHours: number;
+  branchStartedAt?: string;
+  branchLeadTimeHours?: number;
   prMergedAt: string;
   repoName?: string;
 }
@@ -83,6 +85,12 @@ const avgPRLeadTime = computed(() => {
   return (filteredMetrics.value.reduce((acc, m) => acc + m.prLeadTimeHours, 0) / filteredMetrics.value.length).toFixed(1);
 });
 
+const avgBranchLeadTime = computed(() => {
+  const withBranchLeadTime = filteredMetrics.value.filter(m => m.branchLeadTimeHours != null);
+  if (withBranchLeadTime.length === 0) return 'N/A';
+  return (withBranchLeadTime.reduce((acc, m) => acc + (m.branchLeadTimeHours as number), 0) / withBranchLeadTime.length).toFixed(1);
+});
+
 const lineChartData = computed(() => ({
   labels: filteredMetrics.value.map(m => format(new Date(m.prMergedAt), 'MMM dd')),
   datasets: [
@@ -96,6 +104,12 @@ const lineChartData = computed(() => ({
       label: 'PR Lead Time (h)',
       borderColor: '#35495e',
       data: filteredMetrics.value.map(m => m.prLeadTimeHours),
+      tension: 0.1
+    },
+    {
+      label: 'Branch Lead Time (h)',
+      borderColor: '#e74c3c',
+      data: filteredMetrics.value.map(m => m.branchLeadTimeHours ?? null),
       tension: 0.1
     }
   ]
@@ -167,6 +181,10 @@ const scatterOptions: any = {
           <h3>Avg PR Lead Time</h3>
           <p>{{ avgPRLeadTime }} hrs</p>
         </div>
+        <div class="stat-card">
+          <h3>Avg Branch Lead Time</h3>
+          <p>{{ avgBranchLeadTime }} hrs</p>
+        </div>
       </div>
     </header>
 
@@ -190,6 +208,7 @@ const scatterOptions: any = {
               <th>Jira</th>
               <th>Cycle Time</th>
               <th>PR Lead Time</th>
+              <th>Branch Lead Time</th>
               <th>Merged At</th>
             </tr>
           </thead>
@@ -199,6 +218,7 @@ const scatterOptions: any = {
               <td>{{ m.jiraId ?? '—' }}</td>
               <td>{{ m.cycleTimeHours !== null ? m.cycleTimeHours + 'h' : '—' }}</td>
               <td>{{ m.prLeadTimeHours }}h</td>
+              <td>{{ m.branchLeadTimeHours != null ? m.branchLeadTimeHours + 'h' : '—' }}</td>
               <td>{{ format(new Date(m.prMergedAt), 'yyyy-MM-dd HH:mm') }}</td>
             </tr>
           </tbody>

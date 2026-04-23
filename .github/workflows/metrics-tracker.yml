@@ -37,6 +37,7 @@ jobs:
           JIRA_CREATED_FIELD: ${{ vars.JIRA_CREATED_FIELD }}
           JIRA_CYCLE_TIME_FIELD: ${{ vars.JIRA_CYCLE_TIME_FIELD }}
           JIRA_PR_LEAD_TIME_FIELD: ${{ vars.JIRA_PR_LEAD_TIME_FIELD }}
+          JIRA_BRANCH_LEAD_TIME_FIELD: ${{ vars.JIRA_BRANCH_LEAD_TIME_FIELD }}
 
   deploy-dashboard:
     needs: track-metrics

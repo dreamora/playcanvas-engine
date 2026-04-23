@@ -14,7 +14,8 @@ const {
     FIREBASE_SERVICE_ACCOUNT,
     JIRA_CREATED_FIELD = 'created',
     JIRA_CYCLE_TIME_FIELD,
-    JIRA_PR_LEAD_TIME_FIELD
+    JIRA_PR_LEAD_TIME_FIELD,
+    JIRA_BRANCH_LEAD_TIME_FIELD
 } = process.env;
 
 async function run() {
@@ -75,8 +76,35 @@ async function run() {
     const prCreatedAt = new Date(pr.created_at);
     const prMergedAt = new Date(pr.merged_at);
 
+    // 3a. Fetch all commits on the PR to find the earliest author date (Branch Lead Time)
+    let branchStartedAt = prCreatedAt;
+    let page = 1;
+    let allCommits = [];
+    while (true) {
+        const { data: commits } = await octokit.rest.pulls.listCommits({
+            owner,
+            repo,
+            pull_number: pr.number,
+            per_page: 100,
+            page
+        });
+        allCommits = allCommits.concat(commits);
+        if (commits.length < 100) break;
+        page++;
+    }
+    if (allCommits.length > 0) {
+        const earliest = allCommits.reduce((min, c) => {
+            const d = new Date(c.commit.author.date);
+            return d < min ? d : min;
+        }, new Date(allCommits[0].commit.author.date));
+        branchStartedAt = earliest;
+    } else {
+        console.warn(`No commits found for PR #${pr.number}. Falling back to prCreatedAt for branchStartedAt.`);
+    }
+    const branchLeadTimeHours = parseFloat(((prMergedAt - branchStartedAt) / (1000 * 60 * 60)).toFixed(2));
+
     // 4. Calculate Metrics (in hours)
-    // cycleTimeHours requires Jira creation date; prLeadTimeHours is always available
+    // cycleTimeHours requires Jira creation date; prLeadTimeHours and branchLeadTimeHours are always available
     const cycleTimeHours = jiraCreatedAt ? parseFloat(((prMergedAt - jiraCreatedAt) / (1000 * 60 * 60)).toFixed(2)) : null;
     const prLeadTimeHours = parseFloat(((prMergedAt - prCreatedAt) / (1000 * 60 * 60)).toFixed(2));
 
@@ -88,8 +116,10 @@ async function run() {
         jiraCreatedAt: jiraCreatedAt ? jiraCreatedAt.toISOString() : null,
         prCreatedAt: prCreatedAt.toISOString(),
         prMergedAt: prMergedAt.toISOString(),
+        branchStartedAt: branchStartedAt.toISOString(),
         cycleTimeHours,
         prLeadTimeHours,
+        branchLeadTimeHours,
         repository: GITHUB_REPOSITORY
     };
 
@@ -114,10 +144,11 @@ async function run() {
     }
 
     // 6. Update JIRA (only when Jira ID and credentials are available)
-    if (jiraId && jiraAuth && (JIRA_CYCLE_TIME_FIELD || JIRA_PR_LEAD_TIME_FIELD)) {
+    if (jiraId && jiraAuth && (JIRA_CYCLE_TIME_FIELD || JIRA_PR_LEAD_TIME_FIELD || JIRA_BRANCH_LEAD_TIME_FIELD)) {
         const updateFields = {};
         if (JIRA_CYCLE_TIME_FIELD && metrics.cycleTimeHours !== null) updateFields[JIRA_CYCLE_TIME_FIELD] = metrics.cycleTimeHours;
         if (JIRA_PR_LEAD_TIME_FIELD) updateFields[JIRA_PR_LEAD_TIME_FIELD] = metrics.prLeadTimeHours;
+        if (JIRA_BRANCH_LEAD_TIME_FIELD) updateFields[JIRA_BRANCH_LEAD_TIME_FIELD] = metrics.branchLeadTimeHours;
 
         await fetch(`${JIRA_BASE_URL}/rest/api/3/issue/${jiraId}`, {
             method: 'PUT',
@@ -136,7 +167,8 @@ async function run() {
     const jiraLine = jiraId ? `\n- **Jira Issue:** [${jiraId}](${JIRA_BASE_URL}/browse/${jiraId})` : '';
     const cycleTimeLine = metrics.cycleTimeHours !== null ? `\n- **Cycle Time (Jira Creation to Merge):** ${metrics.cycleTimeHours} hours` : '';
     const commentBody = `### 📊 Development Metrics${cycleTimeLine}
-- **PR Lead Time (PR Creation to Merge):** ${metrics.prLeadTimeHours} hours${jiraLine}`;
+- **PR Lead Time (PR Creation to Merge):** ${metrics.prLeadTimeHours} hours
+- **Branch Lead Time (First Commit to Merge):** ${metrics.branchLeadTimeHours} hours${jiraLine}`;
 
     await octokit.rest.issues.createComment({
         owner,
