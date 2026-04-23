@@ -73,8 +73,9 @@ const filteredMetrics = computed(() => {
 });
 
 const avgCycleTime = computed(() => {
-  if (filteredMetrics.value.length === 0) return 0;
-  return (filteredMetrics.value.reduce((acc, m) => acc + m.cycleTimeHours, 0) / filteredMetrics.value.length).toFixed(1);
+  const withCycleTime = filteredMetrics.value.filter(m => m.cycleTimeHours !== null);
+  if (withCycleTime.length === 0) return 'N/A';
+  return (withCycleTime.reduce((acc, m) => acc + m.cycleTimeHours, 0) / withCycleTime.length).toFixed(1);
 });
 
 const avgPRLeadTime = computed(() => {
@@ -105,11 +106,13 @@ const scatterChartData = computed(() => ({
     {
       label: 'PRs',
       backgroundColor: '#42b883',
-      data: filteredMetrics.value.map(m => ({
-        x: new Date(m.prMergedAt).getTime(),
-        y: m.cycleTimeHours,
-        title: m.title
-      }))
+      data: filteredMetrics.value
+        .filter(m => m.cycleTimeHours !== null)
+        .map(m => ({
+          x: new Date(m.prMergedAt).getTime(),
+          y: m.cycleTimeHours,
+          title: m.title
+        }))
     }
   ]
 }));
@@ -193,8 +196,8 @@ const scatterOptions: any = {
           <tbody>
             <tr v-for="m in filteredMetrics.slice().reverse()" :key="m.prNumber">
               <td>#{{ m.prNumber }} - {{ m.title }} <br/><small v-if="selectedRepo === 'all'">{{ m.repoName }}</small></td>
-              <td>{{ m.jiraId }}</td>
-              <td>{{ m.cycleTimeHours }}h</td>
+              <td>{{ m.jiraId ?? '—' }}</td>
+              <td>{{ m.cycleTimeHours !== null ? m.cycleTimeHours + 'h' : '—' }}</td>
               <td>{{ m.prLeadTimeHours }}h</td>
               <td>{{ format(new Date(m.prMergedAt), 'yyyy-MM-dd HH:mm') }}</td>
             </tr>
