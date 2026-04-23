@@ -1,0 +1,55 @@
+name: Update Deep Wiki
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  update-wiki:
+    if: github.repository == 'playcanvas/engine' # Only run on the main repo
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Trigger DeepWiki Regeneration
+        env:
+          DEEPWIKI_URL: ${{ secrets.DEEPWIKI_URL }}
+          DEEPWIKI_API_TOKEN: ${{ secrets.DEEPWIKI_API_TOKEN }}
+        run: |
+          if [ -z "$DEEPWIKI_URL" ]; then
+            echo "DEEPWIKI_URL secret is not set. Skipping wiki update."
+            exit 0
+          fi
+
+          # Payload based on deepwiki.config.yaml settings
+          curl -X POST "${DEEPWIKI_URL}/wiki/generate" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${DEEPWIKI_API_TOKEN}" \
+            -d '{
+              "repo_url": "${{ github.server_url }}/${{ github.repository }}",
+              "force_regenerate": true,
+              "model_provider": "google",
+              "model_name": "gemini-2.0-flash",
+              "detail_level": "medium",
+              "focus_areas": [
+                "graphics_engine_webgl_webgpu",
+                "physics_integration_ammojs",
+                "animation_system",
+                "scene_graph_and_entities",
+                "scripting_system",
+                "resource_loader_and_assets",
+                "input_handling",
+                "sound_manager"
+              ],
+              "diagram_types": [
+                "architecture",
+                "data_flow",
+                "api_structure",
+                "component_relationships"
+              ]
+            }'

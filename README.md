@@ -4,7 +4,7 @@
 
 # PlayCanvas WebGL Game Engine
 
-[API Reference](https://api.playcanvas.com/engine/) | [User Manual](https://developer.playcanvas.com) | [Examples](https://playcanvas.github.io) | [Forum](https://forum.playcanvas.com) | [Blog](https://blog.playcanvas.com)
+[API Reference](https://api.playcanvas.com/engine/) | [Deep Wiki](https://your-deepwiki-url.com) | [User Manual](https://developer.playcanvas.com) | [Examples](https://playcanvas.github.io) | [Forum](https://forum.playcanvas.com) | [Blog](https://blog.playcanvas.com)
 
 PlayCanvas is an open-source game engine. It uses HTML5 and WebGL to run games and other interactive 3D content in any mobile or desktop browser.
 
@@ -121,6 +121,7 @@ The PlayCanvas Engine is an open-source engine that you can use to create HTML5 
 
 For Editor-related bugs and issues, please refer to the [Editor's repo](https://github.com/playcanvas/editor).
 
+[![Deep Wiki](https://img.shields.io/badge/docs-deep--wiki-blueviolet)](https://your-deepwiki-url.com)
 [npm-badge]: https://img.shields.io/npm/v/playcanvas
 [npm-url]: https://www.npmjs.com/package/playcanvas
 [minzip-badge]: https://img.shields.io/bundlephobia/minzip/playcanvas
