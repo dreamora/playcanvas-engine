@@ -58,7 +58,8 @@ async function run() {
             headers: {
                 'Authorization': `Basic ${jiraAuth}`,
                 'Accept': 'application/json'
-            }
+            },
+            signal: AbortSignal.timeout(30000)
         });
 
         if (jiraResponse.ok) {
@@ -104,10 +105,12 @@ async function run() {
             });
         }
         const db = admin.database();
-    const safeRepoPath = GITHUB_REPOSITORY.replace(/\//g, ':').replace(/\./g, '_');
-    const ref = db.ref(`metrics/${safeRepoPath}/${pr.number}`);
+        const safeRepoPath = GITHUB_REPOSITORY.replace(/\//g, ':').replace(/\./g, '_');
+        const ref = db.ref(`metrics/${safeRepoPath}/${pr.number}`);
         await ref.set(metrics);
         console.log("Stored in Firebase.");
+        // Close the Firebase connection so Node.js can exit cleanly.
+        await admin.app().delete();
     }
 
     // 6. Update JIRA (only when Jira ID and credentials are available)
@@ -123,7 +126,8 @@ async function run() {
                 'Accept': 'application/json',
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ fields: updateFields })
+            body: JSON.stringify({ fields: updateFields }),
+            signal: AbortSignal.timeout(30000)
         });
         console.log("Updated JIRA fields.");
     }
