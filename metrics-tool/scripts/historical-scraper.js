@@ -36,7 +36,6 @@ async function scrape() {
     }
 
     const db = admin.database();
-    const jiraAuth = Buffer.from(`${JIRA_USER_EMAIL}:${JIRA_API_TOKEN}`).toString('base64');
 
     for (const repoPath of reposToScrape) {
         const [owner, repo] = repoPath.split("/");
@@ -56,45 +55,55 @@ async function scrape() {
         console.log(`Found ${mergedPRs.length} merged PRs in ${repoPath}.`);
 
         for (const pr of mergedPRs) {
-        const jiraIdMatch = pr.title.match(/[A-Z]+-[0-9]+/) || pr.head.ref.match(/[A-Z]+-[0-9]+/);
-        if (!jiraIdMatch) continue;
+            const jiraIdMatch = pr.title.match(/[A-Z]+-[0-9]+/) || pr.head.ref.match(/[A-Z]+-[0-9]+/);
+            const jiraId = jiraIdMatch ? jiraIdMatch[0] : null;
+            if (jiraId) {
+                console.log(`Processing PR #${pr.number} with Jira ID ${jiraId}...`);
+            } else {
+                console.log(`Processing PR #${pr.number} (no Jira ID)...`);
+            }
 
-        const jiraId = jiraIdMatch[0];
-        console.log(`Processing PR #${pr.number} (${jiraId})...`);
+            try {
+                let jiraCreatedAt = null;
+                if (jiraId && JIRA_BASE_URL && JIRA_USER_EMAIL && JIRA_API_TOKEN) {
+                    const jiraAuth = Buffer.from(`${JIRA_USER_EMAIL}:${JIRA_API_TOKEN}`).toString('base64');
+                    const jiraResponse = await fetch(`${JIRA_BASE_URL}/rest/api/3/issue/${jiraId}`, {
+                        headers: {
+                            'Authorization': `Basic ${jiraAuth}`,
+                            'Accept': 'application/json'
+                        }
+                    });
 
-        try {
-            const jiraResponse = await fetch(`${JIRA_BASE_URL}/rest/api/3/issue/${jiraId}`, {
-                headers: {
-                    'Authorization': `Basic ${jiraAuth}`,
-                    'Accept': 'application/json'
+                    if (jiraResponse.ok) {
+                        const jiraIssue = await jiraResponse.json();
+                        const jiraCreatedAtStr = jiraIssue.fields[JIRA_CREATED_FIELD] || jiraIssue.fields.created;
+                        jiraCreatedAt = new Date(jiraCreatedAtStr);
+                    } else {
+                        console.error(`Failed to fetch JIRA issue ${jiraId}: ${jiraResponse.statusText}`);
+                    }
                 }
-            });
 
-            if (!jiraResponse.ok) continue;
-            const jiraIssue = await jiraResponse.json();
+                const prCreatedAt = new Date(pr.created_at);
+                const prMergedAt = new Date(pr.merged_at);
 
-            const jiraCreatedAtStr = jiraIssue.fields[JIRA_CREATED_FIELD] || jiraIssue.fields.created;
-            const jiraCreatedAt = new Date(jiraCreatedAtStr);
-            const prCreatedAt = new Date(pr.created_at);
-            const prMergedAt = new Date(pr.merged_at);
+                const metrics = {
+                    jiraId,
+                    prNumber: pr.number,
+                    title: pr.title,
+                    author: pr.user.login,
+                    jiraCreatedAt: jiraCreatedAt ? jiraCreatedAt.toISOString() : null,
+                    prCreatedAt: prCreatedAt.toISOString(),
+                    prMergedAt: prMergedAt.toISOString(),
+                    cycleTimeHours: jiraCreatedAt ? parseFloat(((prMergedAt - jiraCreatedAt) / (1000 * 60 * 60)).toFixed(2)) : null,
+                    prLeadTimeHours: parseFloat(((prMergedAt - prCreatedAt) / (1000 * 60 * 60)).toFixed(2)),
+                    repository: repoPath
+                };
 
-            const metrics = {
-                jiraId,
-                prNumber: pr.number,
-                title: pr.title,
-                author: pr.user.login,
-                jiraCreatedAt: jiraCreatedAt.toISOString(),
-                prCreatedAt: prCreatedAt.toISOString(),
-                prMergedAt: prMergedAt.toISOString(),
-                cycleTimeHours: parseFloat(((prMergedAt - jiraCreatedAt) / (1000 * 60 * 60)).toFixed(2)),
-                prLeadTimeHours: parseFloat(((prMergedAt - prCreatedAt) / (1000 * 60 * 60)).toFixed(2)),
-                repository: repoPath
-            };
-
-            const safeRepoPath = repoPath.replace(/\//g, ':').replace(/\./g, '_');
-            await db.ref(`metrics/${safeRepoPath}/${pr.number}`).set(metrics);
-        } catch (e) {
-            console.error(`Error processing ${jiraId}:`, e.message);
+                const safeRepoPath = repoPath.replace(/\//g, ':').replace(/\./g, '_');
+                await db.ref(`metrics/${safeRepoPath}/${pr.number}`).set(metrics);
+            } catch (e) {
+                console.error(`Error processing PR #${pr.number}:`, e.message);
+            }
         }
     }
 

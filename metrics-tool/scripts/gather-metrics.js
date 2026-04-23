@@ -40,55 +40,55 @@ async function run() {
     const octokit = new Octokit({ auth: GITHUB_TOKEN });
     const [owner, repo] = GITHUB_REPOSITORY.split("/");
 
-    // 1. Extract JIRA ID
+    // 1. Extract JIRA ID (optional)
     const jiraIdMatch = pr.title.match(/[A-Z]+-[0-9]+/) || pr.head.ref.match(/[A-Z]+-[0-9]+/);
-    if (!jiraIdMatch) {
-        console.log("No JIRA ID found in PR title or branch name.");
-        return;
+    const jiraId = jiraIdMatch ? jiraIdMatch[0] : null;
+    if (jiraId) {
+        console.log(`Found JIRA ID: ${jiraId}`);
+    } else {
+        console.log("No JIRA ID found in PR title or branch name. Proceeding without Jira enrichment.");
     }
-    const jiraId = jiraIdMatch[0];
-    console.log(`Found JIRA ID: ${jiraId}`);
 
-    // 2. Fetch JIRA Data
-    if (!JIRA_BASE_URL || !JIRA_USER_EMAIL || !JIRA_API_TOKEN) {
-        console.error("Missing Jira configuration (JIRA_BASE_URL, JIRA_USER_EMAIL, or JIRA_API_TOKEN).");
-        return;
-    }
-    const jiraAuth = Buffer.from(`${JIRA_USER_EMAIL}:${JIRA_API_TOKEN}`).toString('base64');
-    const jiraResponse = await fetch(`${JIRA_BASE_URL}/rest/api/3/issue/${jiraId}`, {
-        headers: {
-            'Authorization': `Basic ${jiraAuth}`,
-            'Accept': 'application/json'
+    // 2. Fetch JIRA Data (only when a Jira ID is present and credentials are configured)
+    let jiraCreatedAt = null;
+    let jiraAuth = null;
+    if (jiraId && JIRA_BASE_URL && JIRA_USER_EMAIL && JIRA_API_TOKEN) {
+        jiraAuth = Buffer.from(`${JIRA_USER_EMAIL}:${JIRA_API_TOKEN}`).toString('base64');
+        const jiraResponse = await fetch(`${JIRA_BASE_URL}/rest/api/3/issue/${jiraId}`, {
+            headers: {
+                'Authorization': `Basic ${jiraAuth}`,
+                'Accept': 'application/json'
+            }
+        });
+
+        if (jiraResponse.ok) {
+            const jiraIssue = await jiraResponse.json();
+            const jiraCreatedAtStr = jiraIssue.fields[JIRA_CREATED_FIELD] || jiraIssue.fields.created;
+            jiraCreatedAt = new Date(jiraCreatedAtStr);
+        } else {
+            console.error(`Failed to fetch JIRA issue ${jiraId}: ${jiraResponse.statusText}`);
         }
-    });
-
-    if (!jiraResponse.ok) {
-        console.error(`Failed to fetch JIRA issue ${jiraId}: ${jiraResponse.statusText}`);
-        return;
     }
-
-    const jiraIssue = await jiraResponse.json();
-    const jiraCreatedAtStr = jiraIssue.fields[JIRA_CREATED_FIELD] || jiraIssue.fields.created;
-    const jiraCreatedAt = new Date(jiraCreatedAtStr);
 
     // 3. GitHub PR Metadata
     const prCreatedAt = new Date(pr.created_at);
     const prMergedAt = new Date(pr.merged_at);
 
     // 4. Calculate Metrics (in hours)
-    const cycleTimeHours = (prMergedAt - jiraCreatedAt) / (1000 * 60 * 60);
-    const prLeadTimeHours = (prMergedAt - prCreatedAt) / (1000 * 60 * 60);
+    // cycleTimeHours requires Jira creation date; prLeadTimeHours is always available
+    const cycleTimeHours = jiraCreatedAt ? parseFloat(((prMergedAt - jiraCreatedAt) / (1000 * 60 * 60)).toFixed(2)) : null;
+    const prLeadTimeHours = parseFloat(((prMergedAt - prCreatedAt) / (1000 * 60 * 60)).toFixed(2));
 
     const metrics = {
         jiraId,
         prNumber: pr.number,
         title: pr.title,
         author: pr.user.login,
-        jiraCreatedAt: jiraCreatedAt.toISOString(),
+        jiraCreatedAt: jiraCreatedAt ? jiraCreatedAt.toISOString() : null,
         prCreatedAt: prCreatedAt.toISOString(),
         prMergedAt: prMergedAt.toISOString(),
-        cycleTimeHours: parseFloat(cycleTimeHours.toFixed(2)),
-        prLeadTimeHours: parseFloat(prLeadTimeHours.toFixed(2)),
+        cycleTimeHours,
+        prLeadTimeHours,
         repository: GITHUB_REPOSITORY
     };
 
@@ -110,10 +110,10 @@ async function run() {
         console.log("Stored in Firebase.");
     }
 
-    // 6. Update JIRA
-    if (JIRA_CYCLE_TIME_FIELD || JIRA_PR_LEAD_TIME_FIELD) {
+    // 6. Update JIRA (only when Jira ID and credentials are available)
+    if (jiraId && jiraAuth && (JIRA_CYCLE_TIME_FIELD || JIRA_PR_LEAD_TIME_FIELD)) {
         const updateFields = {};
-        if (JIRA_CYCLE_TIME_FIELD) updateFields[JIRA_CYCLE_TIME_FIELD] = metrics.cycleTimeHours;
+        if (JIRA_CYCLE_TIME_FIELD && metrics.cycleTimeHours !== null) updateFields[JIRA_CYCLE_TIME_FIELD] = metrics.cycleTimeHours;
         if (JIRA_PR_LEAD_TIME_FIELD) updateFields[JIRA_PR_LEAD_TIME_FIELD] = metrics.prLeadTimeHours;
 
         await fetch(`${JIRA_BASE_URL}/rest/api/3/issue/${jiraId}`, {
@@ -129,10 +129,10 @@ async function run() {
     }
 
     // 7. Add PR Comment
-    const commentBody = `### 📊 Development Metrics
-- **Cycle Time (Jira Creation to Merge):** ${metrics.cycleTimeHours} hours
-- **PR Lead Time (PR Creation to Merge):** ${metrics.prLeadTimeHours} hours
-- **Jira Issue:** [${jiraId}](${JIRA_BASE_URL}/browse/${jiraId})`;
+    const jiraLine = jiraId ? `\n- **Jira Issue:** [${jiraId}](${JIRA_BASE_URL}/browse/${jiraId})` : '';
+    const cycleTimeLine = metrics.cycleTimeHours !== null ? `\n- **Cycle Time (Jira Creation to Merge):** ${metrics.cycleTimeHours} hours` : '';
+    const commentBody = `### 📊 Development Metrics${cycleTimeLine}
+- **PR Lead Time (PR Creation to Merge):** ${metrics.prLeadTimeHours} hours${jiraLine}`;
 
     await octokit.issues.createComment({
         owner,
